@@ -29,9 +29,20 @@ Les pages de liste n'affichent presque jamais la composition. L'extension ouvre 
 
 Elle ne retient que le **tissu principal** (le premier bloc qui fait 100 %) : dans « Extérieur 60 % coton, 40 % polyester — Doublure 100 % polyester », c'est 60/40 qui compte.
 
+Le **cuir** est reconnu (cuir, daim, nubuck, leather, piel, pelle, Leder…), y compris sans pourcentage (« Matière : cuir de vachette »). Le **simili cuir** (faux cuir, effet cuir, vegan leather…) et le **PVC** sont comptés parmi les synthétiques.
+
+### Quand l'extension se tait
+
+Plutôt que de risquer un faux verdict, l'extension n'affiche rien (pas de pastille, pas de bandeau, article jamais masqué) :
+- **article non adapté** : parfum, beauté, bijoux, montres, lunettes, cartes cadeaux… repérés par le nom du produit ou son adresse ;
+- **pas de données fiables** : composition introuvable, plusieurs compositions contradictoires sur la page (souvent des articles recommandés), ou analyse qui contredit le nom du produit (« Sac en cuir » analysé en « 100 % polyester »).
+
+Seule exception : avec l'option « Écarter aussi les compositions introuvables », les articles sans données fiables sont écartés (les articles non adaptés, eux, ne sont jamais touchés).
+
 ## Limites connues
 
-- Certains sites chargent la composition uniquement après un clic (via une requête séparée) : l'article apparaît alors en « ? inconnue ».
+- Certains sites chargent la composition uniquement après un clic (via une requête séparée) : l'article reste alors sans verdict.
+- Si tu avais déjà modifié la liste des fibres comptées, coche « Simili cuir » et « PVC » dans le popup pour les inclure.
 - La détection des cartes produit est générique ; sur un site à la structure inhabituelle, il faudra peut-être ajouter un sélecteur spécifique dans `content.js`.
 - Ouvrir beaucoup de fiches en peu de temps peut déclencher l'anti-robot de certains sites ; le cache limite ce risque.
 

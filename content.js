@@ -25,12 +25,13 @@
 
   // ---------- Récupération des fiches produit ----------
   async function fetchComp(key, href) {
+    if (CC.naFromUrl(href)) return { na: true }; // ".../parfums/..." : inutile d'ouvrir la fiche
     const cached = (await chrome.storage.local.get(key))[key];
     if (cached && Date.now() - cached.t < (cached.c ? CACHE_TTL : MISS_TTL)) return cached.c;
     try {
       const r = await fetch(href, { credentials: 'include' });
       if (!r.ok) return null;
-      const c = CC.parseText(CC.htmlToText(await r.text()));
+      const c = CC.analyze(CC.parseHtml(await r.text()), href);
       await chrome.storage.local.set({ [key]: { c, t: Date.now() } });
       return c;
     } catch { return null; }
@@ -103,12 +104,14 @@
     const info = cards.get(card);
     if (!info || !info.done) return;
     const v = CC.verdict(info.comp, S);
+    info.status = v.status;
     const flagged = v.status === 'bad' || (v.status === 'unknown' && S.hideUnknown);
     card.classList.toggle('cc-hidden', flagged && S.mode === 'hide' && !revealed);
     card.classList.toggle('cc-dimmed', flagged && (S.mode === 'dim' || revealed));
 
+    // Article non adapté ou composition introuvable : pas de pastille, l'extension se tait
     let b = card.querySelector(':scope > .cc-badge');
-    if (S.badges) {
+    if (S.badges && (v.status === 'ok' || v.status === 'bad')) {
       if (!b) {
         b = document.createElement('div');
         b.className = 'cc-badge cc-ui';
@@ -116,7 +119,7 @@
         card.appendChild(b);
       }
       b.dataset.status = v.status;
-      b.textContent = v.status === 'unknown' ? '? inconnue' : CC.describe(info.comp.fibers);
+      b.textContent = CC.describe(info.comp.fibers);
     } else if (b) b.remove();
     updatePill();
   }
@@ -134,7 +137,7 @@
     let done = 0, flagged = 0;
     for (const [c, i] of cards) {
       if (!c.isConnected) { cards.delete(c); continue; }
-      if (!i.done) continue;
+      if (!i.done || i.status === 'na' || (i.status === 'unknown' && !S.hideUnknown)) continue; // les silencieux ne comptent pas
       done++;
       if (c.classList.contains('cc-hidden') || c.classList.contains('cc-dimmed')) flagged++;
     }
@@ -148,7 +151,8 @@
   let lastUrl = '';
   function checkProductPage(attempt = 0) {
     document.querySelector('.cc-banner')?.remove();
-    const comp = CC.parseText(CC.htmlToText(document.documentElement.outerHTML));
+    const comp = CC.analyze(CC.parseHtml(document.documentElement.outerHTML), location.href);
+    if (comp?.na) return;
     if (!comp || !comp.sure) {
       if (attempt < 2) setTimeout(() => location.href === lastUrl && checkProductPage(attempt + 1), 2500);
       return;
