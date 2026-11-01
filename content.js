@@ -158,12 +158,13 @@
     const comp = CC.judge(doc.documentElement.textContent, page, location.href);
     const v = CC.verdict(comp, S);
     if (v.status === 'na') return;
-    if (!comp.sure) { // introuvable, ou trouvé loin de tout mot-clé "composition"
-      if (attempt < 2) setTimeout(() => location.href === lastUrl && checkProductPage(attempt + 1), 2500);
-      else if (page.isProduct) banner('unknown', '? Composition introuvable sur cette fiche'); // pages liste : rien à dire
-      return;
+    if (!comp.sure) { // introuvable, ou trouvé loin de tout mot-clé "composition" : la page finit peut-être de charger
+      if (attempt < 2) return setTimeout(() => location.href === lastUrl && checkProductPage(attempt + 1), 2500);
+      if (!page.isProduct) return; // pages liste : rien à dire
     }
-    banner(v.status, `${v.status === 'bad' ? '✗' : '✓'} ${CC.describe(comp.fibers)} — ${v.bad}% de fibres exclues (seuil ${S.threshold}%)`);
+    if (v.status === 'unknown') return banner('unknown', '? Composition introuvable sur cette fiche');
+    banner(v.status, `${v.status === 'bad' ? '✗' : '✓'} ${CC.describe(comp.fibers)} — ${v.bad}% de fibres exclues (seuil ${S.threshold}%)`
+      + (comp.sure ? '' : ' · à vérifier'));
   }
 
   function banner(status, text) {

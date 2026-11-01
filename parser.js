@@ -1,9 +1,10 @@
 // Analyse de composition — partagé entre le script de page et le popup
 (function (global) {
+  // Les noms de marque (Econyl, Woolpure…) désignent une seule fibre : rangés avec elle
   const FIBERS = {
     // Synthétiques
-    polyester:        { label: 'Polyester',        cat: 'synth', words: ['polyester', 'poliester', 'poliestere'] },
-    polyamide:        { label: 'Polyamide',        cat: 'synth', words: ['polyamide', 'polyamid', 'poliamida', 'poliammide', 'nylon'] },
+    polyester:        { label: 'Polyester',        cat: 'synth', words: ['polyester', 'poliester', 'poliestere', 'repreve', 'coolmax', 'polartec', 'primaloft'] },
+    polyamide:        { label: 'Polyamide',        cat: 'synth', words: ['polyamide', 'polyamid', 'poliamida', 'poliammide', 'nylon', 'econyl', 'cordura'] },
     acrylique:        { label: 'Acrylique',        cat: 'synth', words: ['acrylique', 'acrylic', 'acrilico', 'acrilica', 'acryl', 'polyacryl', 'polyacrylique'] },
     elasthanne:       { label: 'Élasthanne',       cat: 'synth', words: ['elasthanne', 'elastane', 'elasthan', 'elastan', 'spandex', 'lycra'] },
     polyurethane:     { label: 'Polyuréthane',     cat: 'synth', words: ['polyurethane', 'polyurethan', 'poliuretano', 'pu'] },
@@ -17,14 +18,14 @@
       'faux leather', 'vegan leather', 'synthetic leather', 'imitation leather', 'pu leather', 'leather look', 'leather effect', 'leatherette',
       'faux daim', 'faux suede', 'suedine', 'microsuede', 'faux shearling', 'ecopiel', 'polipiel', 'piel sintetica', 'ecopelle', 'similpelle', 'kunstleder'] },
     // Artificielles (cellulose)
-    viscose:  { label: 'Viscose', cat: 'art', words: ['viscose', 'viscosa', 'rayonne', 'rayon'] },
+    viscose:  { label: 'Viscose', cat: 'art', words: ['viscose', 'viscosa', 'rayonne', 'rayon', 'ecovero'] },
     modal:    { label: 'Modal',   cat: 'art', words: ['modal'] },
-    lyocell:  { label: 'Lyocell', cat: 'art', words: ['lyocell', 'tencel'] },
+    lyocell:  { label: 'Lyocell', cat: 'art', words: ['lyocell', 'tencel', 'refibra'] },
     acetate:  { label: 'Acétate', cat: 'art', words: ['acetate', 'acetato', 'triacetate'] },
     cupro:    { label: 'Cupro',   cat: 'art', words: ['cupro'] },
     // Naturelles
-    coton:     { label: 'Coton',     cat: 'nat', words: ['coton', 'cotton', 'algodon', 'cotone', 'baumwolle'] },
-    laine:     { label: 'Laine',     cat: 'nat', words: ['laine', 'wool', 'lana', 'wolle', 'merinos', 'merino', 'laine d agneau', 'lambswool'] },
+    coton:     { label: 'Coton',     cat: 'nat', words: ['coton', 'cotton', 'algodon', 'cotone', 'baumwolle', 'supima', 'ventile'] },
+    laine:     { label: 'Laine',     cat: 'nat', words: ['laine', 'wool', 'lana', 'wolle', 'merinos', 'merino', 'laine d agneau', 'lambswool', 'woolpure'] },
     lin:       { label: 'Lin',       cat: 'nat', words: ['lin', 'linen', 'lino', 'leinen', 'flax'] },
     soie:      { label: 'Soie',      cat: 'nat', words: ['soie', 'silk', 'seda', 'seta', 'seide'] },
     cachemire: { label: 'Cachemire', cat: 'nat', words: ['cachemire', 'cashmere', 'cachemira', 'kaschmir'] },
@@ -63,7 +64,7 @@
   const GAP_MAX = 25;
 
   // Libellés de section : ce qui n'est PAS le tissu principal…
-  const LINING_RE = /\b(doublures?|lining|forro|fodera|futter|voering|poches?|pocket(?:ing)?s?|bolsillos?|rembourrage|garnissage|ouatinage|ouatine|filling|padding|relleno|imbottitura|bords?[ -]?cotes?|ribbing|garnitures?|trims?|empiecements?)\b/g;
+  const LINING_RE = /\b(doublures?|lining|forro|fodera|futter|voering|poches?|pocket(?:ing)?s?|bolsillos?|rembourrage|garnissage|ouatinage|ouatine|filling|padding|relleno|imbottitura|bords?[ -]?cotes?|ribbing|garnitures?|trims?|empiecements?|ganses?|passepoils?|liseres?|proprete)\b/g;
   // … et ce qui l'est explicitement
   const MAIN_RE = /\b(exterieur|tissu (?:principal|exterieur)|matiere (?:principale|exterieure)|dessus|tige|empeigne|outer(?: shell)?|shell|upper|main (?:fabric|material)|exterior|tejido (?:principal|exterior)|capellada|tessuto (?:principale|esterno)|esterno|tomaia|oberstoff|obermaterial|aussenmaterial|hauptmaterial)\b/g;
   const GENERIC_RE = /\b(composition|materials?|matieres?|materiaux|materiau|tissu|fabric|composicion|composizione|zusammensetzung)\b/;
@@ -91,12 +92,10 @@
           if (fibers[j].i >= pEnd) { if (!badGap(text.slice(pEnd, fibers[j].i))) f = fibers[j]; break; }
         }
       } else {
-        let j = fi;
-        for (; j < fibers.length && fibers[j].end <= m.index; j++) f = fibers[j];
+        for (let j = fi; j < fibers.length && fibers[j].end <= m.index; j++) f = fibers[j];
         if (f && badGap(text.slice(f.end, m.index))) f = null;
-        if (fibers[j] && fibers[j].i >= pEnd && fibers[j].i - pEnd <= 3) f = null; // "pulls cachemire et pulls 100% coton" : le 100 % va au coton
       }
-      if (f) out.push({ start: Math.min(m.index, f.i), end: Math.max(pEnd, f.end), key: f.key, v });
+      if (f) out.push({ start: Math.min(m.index, f.i), end: Math.max(pEnd, f.end), key: f.key, v, gap: dir === 'after' ? f.i - pEnd : m.index - f.end });
     }
     return out;
   }
@@ -104,12 +103,13 @@
   // Tous les blocs de fibres consécutives qui totalisent 100 %
   function groups(ps) {
     const out = [];
-    let g = {}, sum = 0, last = -1e9, start = 0;
+    let g = {}, sum = 0, last = -1e9, start = 0, gap = 0;
     for (const p of ps) {
-      if (p.start - last > 200 || g[p.key] != null || sum + p.v > 101) { g = {}; sum = 0; }
-      if (sum === 0) start = p.start;
-      g[p.key] = p.v; sum += p.v; last = p.end;
-      if (Math.abs(sum - 100) <= 1) { out.push({ fibers: g, start, end: p.end }); g = {}; sum = 0; }
+      if (p.start - last > 200 || sum + p.v > 101) { g = {}; sum = 0; }
+      if (sum === 0) { start = p.start; gap = 0; }
+      g[p.key] = (g[p.key] || 0) + p.v; // "35% de cachemire vierge et 65% de cachemire recyclé"
+      sum += p.v; last = p.end; gap = Math.max(gap, p.gap);
+      if (Math.abs(sum - 100) <= 1) { out.push({ fibers: g, start, end: p.end, gap }); g = {}; sum = 0; }
     }
     return out;
   }
@@ -125,22 +125,27 @@
   }
 
   // "Matière : cuir de vachette" : matière sans pourcentage juste après un libellé = 100 %.
-  // Réservé aux matières "bare" (cuir…), et seulement si rien d'autre n'est cité avant la fin de la mention
+  // Réservé aux matières "bare" (cuir…). Pour toutes : "Pure laine mérinos", "Full coton bio", "tout coton".
+  // Dans les deux cas, seulement si rien d'autre n'est cité avant la fin de la mention
+  const PURE_G = /\b(?:pure?s?|full|tout|all)\s+/g;
   function bare(text) {
     const out = [];
-    for (const m of text.matchAll(LABEL_MAIN_G)) {
-      let i = m.index + m[0].length;
-      i += /^["'\s:=\-–]*(?:(?:en|in|de|aus|di)\s+)?/.exec(text.slice(i, i + 20))[0].length;
+    const mention = (i, anyFiber) => {
       const f = FIBER_AT.exec(text.slice(i, i + 40));
       const key = f && keyOf(f[1]);
-      if (!key || !FIBERS[key].bare) continue;
+      if (!key || !(anyFiber || FIBERS[key].bare)) return;
       const end = i + f[0].length;
       let tail = text.slice(end, end + 40);
       const stop = tail.search(BARE_STOP);
       if (stop >= 0) tail = tail.slice(0, stop);
-      if (/[\d%]/.test(tail) || [...tail.matchAll(FIBER_RE)].some(o => keyOf(o[1]) !== key)) continue; // "cuir et coton", "cuir 80 %"…
-      out.push({ fibers: { [key]: 100 }, start: i, end });
+      if (/[\d%]/.test(tail) || [...tail.matchAll(FIBER_RE)].some(o => keyOf(o[1]) !== key)) return; // "cuir et coton", "cuir 80 %"…
+      out.push({ fibers: { [key]: 100 }, start: i, end, gap: 0 });
+    };
+    for (const m of text.matchAll(LABEL_MAIN_G)) {
+      const i = m.index + m[0].length;
+      mention(i + /^["'\s:=\-–]*(?:(?:en|in|de|aus|di)\s+)?/.exec(text.slice(i, i + 20))[0].length, false);
     }
+    for (const m of text.matchAll(PURE_G)) mention(m.index + m[0].length, true);
     return out;
   }
 
@@ -149,8 +154,11 @@
   // Blocs candidats au tissu principal, dans l'ordre du texte ; doublure & co. ignorés
   function candidates(t) {
     const ga = groups(pairs(t, 'after')), gb = groups(pairs(t, 'before'));
-    const gs = (!ga.length ? gb : !gb.length ? ga : (gb[0].start < ga[0].start ? gb : ga))
-      .concat(bare(t)).sort((a, b) => a.start - b.start);
+    // Les deux sens de lecture trouvent un bloc : s'ils se chevauchent, le plus serré l'emporte
+    // ("pulls cachemire et pulls 100% coton" : c'est "100% coton") ; sinon, le premier
+    const [a, b] = [ga[0], gb[0]];
+    const after = !b || (a && (Math.abs(a.start - b.start) < 100 ? a.gap <= b.gap : a.start < b.start));
+    const gs = (after ? ga : gb).concat(bare(t)).sort((x, y) => x.start - y.start);
     const out = [];
     let prevEnd = 0;
     for (const g of gs) {
