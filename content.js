@@ -24,10 +24,13 @@
   };
 
   // ---------- Récupération des fiches produit ----------
-  async function fetchComp(key, href) {
-    if (CC.naFromUrl(href)) return { na: true }; // ".../parfums/..." : inutile d'ouvrir la fiche
+  async function fetchComp(key, href, text) {
     const cached = (await chrome.storage.local.get(key))[key];
-    if (cached && Date.now() - cached.t < (cached.c ? CACHE_TTL : MISS_TTL)) return cached.c;
+    const found = cached?.c && (cached.c.fibers || cached.c.type === 'hors');
+    if (cached && Date.now() - cached.t < (found ? CACHE_TTL : MISS_TTL)) return cached.c;
+    // "Mocassin homme…", ".../parfums/..." : type non analysé, inutile d'ouvrir la fiche
+    const type = CC.cardType(text, href);
+    if (type === 'hors' || !S.types.includes(type)) return { type, skipped: true };
     try {
       const r = await fetch(href, { credentials: 'include' });
       if (!r.ok) return null;
@@ -37,17 +40,17 @@
     } catch { return null; }
   }
 
-  function getComp(key, href) {
-    if (!results.has(key)) results.set(key, new Promise(res => queue.push({ key, href, res })));
+  function getComp(key, href, text) {
+    if (!results.has(key)) results.set(key, new Promise(res => queue.push({ key, href, text, res })));
     pump();
     return results.get(key);
   }
 
   function pump() {
     while (active < CONCURRENCY && queue.length) {
-      const { key, href, res } = queue.shift();
+      const { key, href, text, res } = queue.shift();
       active++; updatePill();
-      fetchComp(key, href).then(res, () => res(null)).finally(() => { active--; pump(); updatePill(); });
+      fetchComp(key, href, text).then(res, () => res(null)).finally(() => { active--; pump(); updatePill(); });
     }
   }
 
@@ -59,7 +62,7 @@
   async function processCard(card) {
     const info = cards.get(card);
     if (!info) return;
-    info.comp = await getComp(info.key, info.href);
+    info.comp = await getComp(info.key, info.href, card.textContent);
     info.done = true;
     apply(card);
   }
@@ -109,9 +112,9 @@
     card.classList.toggle('cc-hidden', flagged && S.mode === 'hide' && !revealed);
     card.classList.toggle('cc-dimmed', flagged && (S.mode === 'dim' || revealed));
 
-    // Article non adapté ou composition introuvable : pas de pastille, l'extension se tait
+    // Article non concerné : pas de pastille, l'extension se tait
     let b = card.querySelector(':scope > .cc-badge');
-    if (S.badges && (v.status === 'ok' || v.status === 'bad')) {
+    if (S.badges && v.status !== 'na') {
       if (!b) {
         b = document.createElement('div');
         b.className = 'cc-badge cc-ui';
@@ -119,7 +122,7 @@
         card.appendChild(b);
       }
       b.dataset.status = v.status;
-      b.textContent = CC.describe(info.comp.fibers);
+      b.textContent = v.status === 'unknown' ? '? introuvable' : CC.describe(info.comp.fibers);
     } else if (b) b.remove();
     updatePill();
   }
@@ -137,7 +140,7 @@
     let done = 0, flagged = 0;
     for (const [c, i] of cards) {
       if (!c.isConnected) { cards.delete(c); continue; }
-      if (!i.done || i.status === 'na' || (i.status === 'unknown' && !S.hideUnknown)) continue; // les silencieux ne comptent pas
+      if (!i.done || i.status === 'na') continue; // les non concernés ne comptent pas
       done++;
       if (c.classList.contains('cc-hidden') || c.classList.contains('cc-dimmed')) flagged++;
     }
@@ -151,18 +154,24 @@
   let lastUrl = '';
   function checkProductPage(attempt = 0) {
     document.querySelector('.cc-banner')?.remove();
-    const comp = CC.analyze(CC.parseHtml(document.documentElement.outerHTML), location.href);
-    if (comp?.na) return;
-    if (!comp || !comp.sure) {
+    const doc = CC.parseHtml(document.documentElement.outerHTML), page = CC.productInfo(doc);
+    const comp = CC.judge(doc.documentElement.textContent, page, location.href);
+    const v = CC.verdict(comp, S);
+    if (v.status === 'na') return;
+    if (!comp.sure) { // introuvable, ou trouvé loin de tout mot-clé "composition"
       if (attempt < 2) setTimeout(() => location.href === lastUrl && checkProductPage(attempt + 1), 2500);
+      else if (page.isProduct) banner('unknown', '? Composition introuvable sur cette fiche'); // pages liste : rien à dire
       return;
     }
-    const v = CC.verdict(comp, S);
+    banner(v.status, `${v.status === 'bad' ? '✗' : '✓'} ${CC.describe(comp.fibers)} — ${v.bad}% de fibres exclues (seuil ${S.threshold}%)`);
+  }
+
+  function banner(status, text) {
     const el = document.createElement('div');
     el.className = 'cc-banner cc-ui';
-    el.dataset.status = v.status;
+    el.dataset.status = status;
     el.innerHTML = `<span></span><button aria-label="Fermer">×</button>`;
-    el.firstChild.textContent = `${v.status === 'bad' ? '✗' : '✓'} ${CC.describe(comp.fibers)} — ${v.bad}% de fibres exclues (seuil ${S.threshold}%)`;
+    el.firstChild.textContent = text;
     el.lastChild.onclick = () => el.remove();
     document.documentElement.appendChild(el);
   }
@@ -184,6 +193,12 @@
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area !== 'sync') return;
     for (const k in ch) S[k] = ch[k].newValue ?? CC.DEFAULTS[k];
+    if (ch.types) cards.forEach((info, c) => { // fiches jamais ouvertes car type non coché : on les ouvre maintenant
+      if (!info.comp?.skipped) return;
+      results.delete(info.key);
+      info.done = false;
+      processCard(c);
+    });
     cards.forEach((_, c) => apply(c));
     lastUrl = ''; onUrl();
   });

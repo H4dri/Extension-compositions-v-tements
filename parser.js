@@ -24,7 +24,7 @@
     cupro:    { label: 'Cupro',   cat: 'art', words: ['cupro'] },
     // Naturelles
     coton:     { label: 'Coton',     cat: 'nat', words: ['coton', 'cotton', 'algodon', 'cotone', 'baumwolle'] },
-    laine:     { label: 'Laine',     cat: 'nat', words: ['laine', 'wool', 'lana', 'wolle', 'merinos', 'merino'] },
+    laine:     { label: 'Laine',     cat: 'nat', words: ['laine', 'wool', 'lana', 'wolle', 'merinos', 'merino', 'laine d agneau', 'lambswool'] },
     lin:       { label: 'Lin',       cat: 'nat', words: ['lin', 'linen', 'lino', 'leinen', 'flax'] },
     soie:      { label: 'Soie',      cat: 'nat', words: ['soie', 'silk', 'seda', 'seta', 'seide'] },
     cachemire: { label: 'Cachemire', cat: 'nat', words: ['cachemire', 'cashmere', 'cachemira', 'kaschmir'] },
@@ -35,7 +35,8 @@
     angora:    { label: 'Angora',    cat: 'nat', words: ['angora'] },
     // Cuir (pas une fibre, mais la matière principale des sacs, chaussures, ceintures…)
     cuir: { label: 'Cuir', cat: 'nat', bare: true, words: [
-      'cuir', 'leather', 'piel', 'pelle', 'leder', 'echtleder', 'glattleder', 'wildleder', 'daim', 'suede', 'nubuck', 'vachette', 'shearling'] },
+      'cuir', 'leather', 'piel', 'pelle', 'leder', 'echtleder', 'glattleder', 'wildleder', 'kalbsleder', 'daim', 'suede', 'nubuck', 'vachette', 'shearling',
+      'veau', 'agneau', 'chevre', 'box calf', 'nappa', 'peau lainee', 'mouton retourne', 'calfskin', 'lambskin', 'goatskin', 'cowhide', 'sheepskin', 'vitello', 'becerro'] },
   };
 
   const DEFAULTS = {
@@ -45,17 +46,18 @@
     mode: 'hide',        // 'hide' | 'dim'
     badges: true,
     hideUnknown: false,
+    types: ['vetement'], // chaussures et maroquinerie : souvent sans composition chiffrée
   };
 
   const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\u00a0\u202f]/g, ' ');
 
   const WORD2KEY = {};
   for (const [k, f] of Object.entries(FIBERS)) for (const w of f.words) WORD2KEY[w] = k;
-  // Les plus longs d'abord : "simili cuir" avant "cuir" ; espace ou tiret ("simili-cuir")
-  const FIBER_ALT = Object.keys(WORD2KEY).sort((a, b) => b.length - a.length).map(w => w.replace(/ /g, '[\\s-]+')).join('|');
+  // Les plus longs d'abord : "simili cuir" avant "cuir" ; espace, tiret ou apostrophe ("simili-cuir", "laine d'agneau")
+  const FIBER_ALT = Object.keys(WORD2KEY).sort((a, b) => b.length - a.length).map(w => w.replace(/ /g, "[\\s'’-]+")).join('|');
   const FIBER_RE = new RegExp('\\b(' + FIBER_ALT + ')s?\\b', 'g');
   const FIBER_AT = new RegExp('^(' + FIBER_ALT + ')s?\\b');
-  const keyOf = w => WORD2KEY[w.replace(/[\s-]+/g, ' ')];
+  const keyOf = w => WORD2KEY[w.replace(/[\s'’-]+/g, ' ')];
   const PCT_RE = /(\d{1,3}(?:[.,]\d{1,2})?)\s*%/g;
   const KEYWORD_RE = /composition|matiere|materiau|material|fabric|tissu|zusammensetzung|composicion|composizione/g;
   const GAP_MAX = 25;
@@ -89,8 +91,10 @@
           if (fibers[j].i >= pEnd) { if (!badGap(text.slice(pEnd, fibers[j].i))) f = fibers[j]; break; }
         }
       } else {
-        for (let j = fi; j < fibers.length && fibers[j].end <= m.index; j++) f = fibers[j];
+        let j = fi;
+        for (; j < fibers.length && fibers[j].end <= m.index; j++) f = fibers[j];
         if (f && badGap(text.slice(f.end, m.index))) f = null;
+        if (fibers[j] && fibers[j].i >= pEnd && fibers[j].i - pEnd <= 3) f = null; // "pulls cachemire et pulls 100% coton" : le 100 % va au coton
       }
       if (f) out.push({ start: Math.min(m.index, f.i), end: Math.max(pEnd, f.end), key: f.key, v });
     }
@@ -180,8 +184,34 @@
     return r ? { fibers: r.fibers, sure: false } : null;
   }
 
-  // Articles hors sujet (parfum, bijoux…) : l'extension se tait, même si une composition traîne sur la page
-  const NA_RE = /\b(parfums?|eaux? de (?:toilette|parfum|cologne)|fragrances?|perfumes?|profum[oi]|colonias?|deodorants?|bougies?|candles?|diffuseurs?|maquillage|make ?up|rouges? a levres|lipsticks?|mascaras?|serums?|lotions?|shampo+ings?|gels? douche|cosmetiques?|cosmetics?|beaute|beauty|bijoux?|jewel(?:le)?ry|joyas|gioielli|schmuck|colliers?|necklaces?|boucles? d ?oreilles?|earrings?|bagues?|bracelets?|montres?|lunettes|sunglasses|eyewear|gafas|occhiali|cartes? cadeaux?|gift ?cards?|\d+(?:[.,]\d+)? ?ml)\b/;
+  // ---------- Type d'article ----------
+  // 'hors' (parfum, bijoux…) n'est jamais analysé ; les autres types se cochent dans le popup
+  const TYPES = {
+    vetement: { label: 'Vêtements & accessoires textiles', re: /\b(pulls?|t ?shirts?|tee ?shirts?|tees?|chemises?|chemisiers?|blouses?|vestes?|blousons?|manteaux?|parkas?|doudounes?|trenchs?|impermeables?|pantalons?|jeans?|chinos?|shorts?|bermudas?|jupes?|robes?|gilets?|cardigans?|sweats?|sweat ?shirts?|hoodies?|polos?|tops?|debardeurs?|costumes?|blazers?|combinaisons?|leggings?|joggings?|pyjamas?|maillots?|culottes?|slips?|boxers?|calecons?|soutiens? gorge|chaussettes?|collants?|echarpes?|cheches?|foulards?|bonnets?|casquettes?|chapeaux?|cravates?|noeuds? papillon|shirts?|jackets?|coats?|trousers?|pants|skirts?|dress(?:es)?|sweaters?|jumpers?|knitwear|socks?|scarf|scarves|beanies?|ties|camisas?|camisetas?|chaquetas?|vestidos?|faldas?|jerseys?|sudaderas?|camicia|camicie|giacca|giacche|pantaloni|gonna|gonne|maglione|maglioni|hemd|hemden|jacke|jacken|hose|hosen|kleid|kleider|pullover)\b/ },
+    chaussures: { label: 'Chaussures', re: /\b(chaussures?|mocassins?|baskets?|sneakers?|bottes?|bottines?|boots?|derbys?|richelieus?|escarpins?|sandales?|mules?|espadrilles?|ballerines?|chaussons?|tongs?|loafers?|shoes?|sandals?|trainers?|zapatos|zapatillas|botas|scarpe|stivali|schuhe|stiefel)\b/ },
+    maroquinerie: { label: 'Sacs & maroquinerie', re: /\b(sacs?|cabas|pochettes?|besaces?|cartables?|portefeuilles?|porte (?:cartes?|monnaie|documents?|cles)|ceintures?|maroquinerie|valises?|bagages?|bags?|handbags?|backpacks?|totes?|wallets?|belts?|bolsos?|cinturon(?:es)?|borsa|borse|cintura|cinture|taschen?|gurtel)\b/ },
+    hors: { re: /\b(parfums?|eaux? de (?:toilette|parfum|cologne)|fragrances?|perfumes?|profum[oi]|colonias?|deodorants?|bougies?|candles?|diffuseurs?|maquillage|make ?up|rouges? a levres|lipsticks?|mascaras?|serums?|lotions?|shampo+ings?|gels? douche|cosmetiques?|cosmetics?|beaute|beauty|bijoux?|jewel(?:le)?ry|joyas|gioielli|schmuck|colliers?|necklaces?|boucles? d ?oreilles?|earrings?|bagues?|bracelets?|montres?|lunettes|sunglasses|eyewear|gafas|occhiali|cartes? cadeaux?|gift ?cards?|\d+(?:[.,]\d+)? ?ml)\b/ },
+  };
+  const TYPE_RES = Object.entries(TYPES).map(([type, t]) => [type, new RegExp(t.re.source, 'g')]);
+  const words = s => norm(s || '').replace(/[-_/+.'’|>]+/g, ' ');
+
+  // Le mot de type le plus tôt dans le texte ("Pantalon à ceinture" = vêtement), ou le plus tard (fil d'Ariane : le plus précis est à la fin)
+  function typeIn(text, last) {
+    let best = null;
+    for (const [type, re] of TYPE_RES)
+      for (const m of text.matchAll(re)) {
+        if (!best || (last ? m.index > best.i : m.index < best.i)) best = { i: m.index, type };
+        if (!last) break;
+      }
+    return best?.type;
+  }
+
+  // Sources par ordre de confiance : la première qui parle décide ; sinon, sur un site de mode, c'est un vêtement
+  const classify = sources => sources.reduce((t, [text, last]) => t || typeIn(words(text), last), null) || 'vetement';
+  const urlPath = url => { try { return decodeURIComponent(new URL(url).pathname); } catch { return ''; } };
+  // Avant d'ouvrir la fiche : le texte de la carte (nom du produit) puis l'adresse
+  const cardType = (text, url) => classify([[text, false], [urlPath(url), false]]);
+
   const LOOKALIKE_BEFORE = /\b(effet|facon|toucher|aspect|imitation|faux|style|esprit|look|type)\W*(?:de |d )?$/;
   const LOOKALIKE_AFTER = /^\W*(look|touch|feel|effect|like|style)\b/;
 
@@ -198,20 +228,14 @@
     return [...out];
   }
 
-  function urlWords(url) {
-    try { return norm(decodeURIComponent(new URL(url).pathname)).replace(/[-_/+.]+/g, ' '); } catch { return ''; }
-  }
-  const naFromUrl = url => NA_RE.test(urlWords(url));
-
-  // null = rien de fiable ; { na: true } = article non adapté ; sinon { fibers, sure }
-  function judge(text, title, url) {
-    const name = norm(title || '').replace(/'/g, ' ');
-    if (NA_RE.test(name) || naFromUrl(url)) return { na: true };
+  // { type, fibers, sure } ; sans fibers = composition introuvable ou douteuse
+  function judge(text, { name = '', crumbs = '' } = {}, url = '') {
+    const type = classify([[name, false], [crumbs, true], [urlPath(url), false]]);
+    if (type === 'hors') return { type };
     const c = parseText(text);
-    if (!c) return null;
-    const h = hints(name);
-    if (h.length && !h.some(k => k in c.fibers)) return null; // le nom dit "cuir", l'analyse non : elle s'est trompée de bloc
-    return c;
+    const h = hints(words(name));
+    if (!c || (h.length && !h.some(k => k in c.fibers))) return { type }; // le nom dit "cuir", l'analyse non : elle s'est trompée de bloc
+    return { type, ...c };
   }
 
   function parseHtml(html) {
@@ -224,27 +248,44 @@
     return doc;
   }
 
-  function productName(j, depth = 0) {
-    if (!j || typeof j !== 'object' || depth > 4) return '';
-    if (Array.isArray(j)) { for (const x of j) { const n = productName(x, depth + 1); if (n) return n; } return ''; }
-    if ([].concat(j['@type']).some(t => /^Product(Group)?$/.test(t)) && typeof j.name === 'string') return j.name;
-    return productName(j['@graph'], depth + 1);
+  // Objets JSON-LD de la page (données structurées pour les moteurs de recherche), @graph compris
+  function ldNodes(doc) {
+    const out = [];
+    const walk = (j, depth) => {
+      if (!j || typeof j !== 'object' || depth > 4) return;
+      if (Array.isArray(j)) return j.forEach(x => walk(x, depth + 1));
+      out.push(j);
+      walk(j['@graph'], depth + 1);
+    };
+    for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) { try { walk(JSON.parse(s.textContent), 0); } catch {} }
+    return out;
   }
+  const isA = (j, re) => [].concat(j['@type']).some(t => re.test(t));
 
-  // Nom du produit : JSON-LD > h1 > og:title (le <title> contient souvent le slogan du site : "mode, beauté, parfums")
-  function titleOf(doc) {
-    for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
-      try { const n = productName(JSON.parse(s.textContent)); if (n) return n; } catch {}
-    }
-    return doc.querySelector('h1')?.textContent || doc.querySelector('meta[property="og:title"]')?.content || '';
+  // Nom : JSON-LD > h1 > og:title (le <title> contient souvent le slogan du site : "mode, beauté, parfums")
+  // Fil d'Ariane : JSON-LD, catégorie du produit, puis celui affiché dans la page
+  function productInfo(doc) {
+    const ld = ldNodes(doc);
+    const product = ld.find(j => isA(j, /^Product(Group)?$/));
+    const crumbs = ld.filter(j => isA(j, /^BreadcrumbList$/))
+      .flatMap(j => [].concat(j.itemListElement || []).map(e => e?.name || e?.item?.name || ''));
+    if (typeof product?.category === 'string') crumbs.push(product.category);
+    const shown = doc.querySelector('[class*="breadcrumb" i], nav[aria-label*="breadcrumb" i], nav[aria-label*="ariane" i]');
+    if (shown) crumbs.push(shown.textContent);
+    return {
+      name: (typeof product?.name === 'string' && product.name) || doc.querySelector('h1')?.textContent || doc.querySelector('meta[property="og:title"]')?.content || '',
+      crumbs: crumbs.join(' > '),
+      isProduct: !!product || /product/i.test(doc.querySelector('meta[property="og:type"]')?.content || ''),
+    };
   }
 
   // textContent inclut le JSON des <script>, souvent riche en compositions
-  const analyze = (doc, url) => judge(doc.documentElement.textContent, titleOf(doc), url);
+  const analyze = (doc, url) => judge(doc.documentElement.textContent, productInfo(doc), url);
 
+  // na = non concerné (type non coché, parfum…) : silence ; unknown = concerné mais composition introuvable
   function verdict(comp, s) {
-    if (!comp) return { status: 'unknown', bad: 0 };
-    if (comp.na) return { status: 'na', bad: 0 };
+    if (comp && (comp.type === 'hors' || !s.types.includes(comp.type))) return { status: 'na', bad: 0 };
+    if (!comp?.fibers) return { status: 'unknown', bad: 0 };
     let bad = 0;
     for (const [k, v] of Object.entries(comp.fibers)) if (s.bad.includes(k)) bad += v;
     return { status: bad > s.threshold ? 'bad' : 'ok', bad: Math.round(bad) };
@@ -255,7 +296,7 @@
       .map(([k, v]) => `${Math.round(v * 10) / 10}% ${FIBERS[k].label}`).join(', ');
   }
 
-  const VERSION = 3; // à incrémenter quand l'analyse change : vide le cache des compositions
+  const VERSION = 4; // à incrémenter quand l'analyse change : vide le cache des compositions
 
-  global.CC = { VERSION, FIBERS, DEFAULTS, parseText, judge, parseHtml, analyze, naFromUrl, verdict, describe };
+  global.CC = { VERSION, FIBERS, TYPES, DEFAULTS, parseText, judge, parseHtml, productInfo, analyze, cardType, verdict, describe };
 })(globalThis);

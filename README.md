@@ -29,19 +29,23 @@ Les pages de liste n'affichent presque jamais la composition. L'extension ouvre 
 
 Elle ne retient que le **tissu principal** (le premier bloc qui fait 100 %) : dans « Extérieur 60 % coton, 40 % polyester — Doublure 100 % polyester », c'est 60/40 qui compte.
 
-Le **cuir** est reconnu (cuir, daim, nubuck, leather, piel, pelle, Leder…), y compris sans pourcentage (« Matière : cuir de vachette »). Le **simili cuir** (faux cuir, effet cuir, vegan leather…) et le **PVC** sont comptés parmi les synthétiques.
+Le **cuir** est reconnu (cuir, veau, agneau, daim, nubuck, leather, piel, pelle, Leder…), y compris sans pourcentage (« Dessus : veau italien »). Le **simili cuir** (faux cuir, effet cuir, vegan leather…) et le **PVC** sont comptés parmi les synthétiques.
 
-### Quand l'extension se tait
+### Types d'articles
 
-Plutôt que de risquer un faux verdict, l'extension n'affiche rien (pas de pastille, pas de bandeau, article jamais masqué) :
-- **article non adapté** : parfum, beauté, bijoux, montres, lunettes, cartes cadeaux… repérés par le nom du produit ou son adresse ;
-- **pas de données fiables** : composition introuvable, plusieurs compositions contradictoires sur la page (souvent des articles recommandés), ou analyse qui contredit le nom du produit (« Sac en cuir » analysé en « 100 % polyester »).
+Chaque article est classé : **vêtements & accessoires textiles**, **chaussures**, **sacs & maroquinerie**, ou **hors sujet** (parfum, beauté, bijoux, montres, lunettes, cartes cadeaux…). Le type se lit dans le nom du produit, puis dans le fil d'Ariane de la fiche, puis dans son adresse ; à défaut, l'article est considéré comme un vêtement.
 
-Seule exception : avec l'option « Écarter aussi les compositions introuvables », les articles sans données fiables sont écartés (les articles non adaptés, eux, ne sont jamais touchés).
+Dans le popup, **Articles analysés** choisit les types concernés (par défaut : vêtements seulement, car chaussures et sacs donnent rarement une composition chiffrée). Pour un type non coché, la fiche n'est même pas ouverte.
+
+### « Non concerné » ou « ne sais pas »
+
+- **Non concerné** (type non coché ou hors sujet) : l'extension se tait. Pas de pastille, pas de bandeau, article jamais masqué ni compté.
+- **Ne sais pas** (article concerné, mais composition introuvable ou douteuse) : pastille grise « ? introuvable », et bandeau gris sur la fiche produit. Une composition est jugée douteuse quand plusieurs compositions se contredisent sur la page (souvent des articles recommandés) ou quand elle contredit le nom du produit (« Sac en cuir » analysé en « 100 % polyester »). L'option « Écarter aussi les compositions introuvables » masque ces articles.
 
 ## Limites connues
 
-- Certains sites chargent la composition uniquement après un clic (via une requête séparée) : l'article reste alors sans verdict.
+- Certains sites chargent la composition uniquement après un clic (via une requête séparée) : l'article apparaît alors en « ? introuvable ».
+- Le type d'article se devine par mots-clés : un nom de produit sans mot de type (« FAUSTIN ») dépend du fil d'Ariane ou de l'adresse. Un article mal classé est soit ignoré à tort, soit analysé alors qu'il n'aurait pas dû l'être.
 - Si tu avais déjà modifié la liste des fibres comptées, coche « Simili cuir » et « PVC » dans le popup pour les inclure.
 - La détection des cartes produit est générique ; sur un site à la structure inhabituelle, il faudra peut-être ajouter un sélecteur spécifique dans `content.js`.
 - Ouvrir beaucoup de fiches en peu de temps peut déclencher l'anti-robot de certains sites ; le cache limite ce risque.
